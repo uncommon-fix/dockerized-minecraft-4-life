@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Velocity Proxy - Public-facing entry point
   velocity-proxy:
@@ -55,10 +53,9 @@ services:
       MEMORY: "12G"
       INIT_MEMORY: "4G"
       USE_AIKAR_FLAGS: "true"
-      ENABLE_AUTOPAUSE: "true"
       RCON_CMDS_STARTUP:  |-
         gamerule doInsomnia false
-        chunky radius 100000
+        chunky radius 50000
         chunky world world
         chunky start
         chunky world world_nether
@@ -72,10 +69,12 @@ services:
       UID: 1002
       GID: 1002
       OVERRIDE_SERVER_PROPERTIES: "true"
+      ENABLE_AUTOPAUSE: "false"
       NETWORK_COMPRESSION_THRESHOLD: "-1"
       ONLINE_MODE: "false"
       MODE: "survival"
       LEVEL_TYPE: "minecraft:large_biomes"
+      SEED: "Minecraft4Life"
       DIFFICULTY: "hard"
       PVP: "true"
       SPAWN_PROTECTION: "8"
@@ -111,8 +110,14 @@ services:
 
   paper-survival-bluemap:
     image: ghcr.io/bluemap-minecraft/bluemap:v5.13
+    container_name: paper-survival-bluemap
+    hostname: paper-survival-bluemap
     restart: unless-stopped
-    command: -r -u -w
+    entrypoint: ["/bin/sh", "-c"]
+    command: 
+      - |
+        cp -r /setup/* /app/config/ 2>/dev/null || true
+        exec java -jar /app/cli.jar -r -u -w
     ports:
       - '8100:8100'
     networks:
@@ -121,10 +126,12 @@ services:
       paper-survival:
         condition: service_healthy
     volumes:
-      - ./config/survival/blue_map:/app/config
       - ./data/survival/world:/app/world:ro
       - ./data/survival/world_nether:/app/world_nether:ro
       - ./data/survival/world_the_end:/app/world_the_end:ro 
+      - ./data/survival/blue_map:/app/config:rw
+      # Config overrides - copied from /setup to /app/config at startup
+      - ./plugin-configs/survival/blue_map:/setup:ro
       - blue_map_data:/app/data
       - blue_map_web:/app/web
 
@@ -156,7 +163,9 @@ services:
       GENERATE_STRUCTURES: "false"
       ONLINE_MODE: "false"
       MODE: "creative"
-      FORCE_GAMEMODE: "true"
+      LEVEL_TYPE: "minecraft:flat"
+      FORCE_GAMEMODE: true
+      GENERATOR_SETTINGS: '{"biome":"minecraft:plains","layers":[{"block":"minecraft:white_stained_glass","height":1}]}'
       DIFFICULTY: "hard"
       PVP: "false"
       SPAWN_PROTECTION: "0"
