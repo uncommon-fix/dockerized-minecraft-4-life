@@ -1,0 +1,199 @@
+version: '3.8'
+
+services:
+  # Velocity Proxy - Public-facing entry point
+  velocity-proxy:
+    image: itzg/mc-proxy:latest
+    container_name: velocity-proxy
+    hostname: velocity-proxy
+    ports:
+      - "25565:25577"  # Map standard Minecraft port to Velocity
+      - "19132:19132/udp"  # Geyser UDP
+    environment:
+      TYPE: VELOCITY
+      VELOCITY_VERSION: "3.4.0-SNAPSHOT"
+      VELOCITY_BUILD_ID: "557"
+      EULA: "TRUE"
+      MEMORY: 1G
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "£Di50^xw2x4gDf<02f"
+      UID: 1002
+      GID: 1002
+    volumes:
+      # Config files - read-only for security
+      - ./config/velocity/velocity.toml:/config/velocity.toml:ro
+      - ./config/velocity/forwarding.secret:/config/forwarding.secret:ro
+      - ./plugins/velocity:/plugins:ro
+      # Data volume
+      - ./data/velocity:/server:rw
+    networks:
+      - velocity
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mc-monitor status --host localhost --port 25577 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Paper Survival Server - Main default server
+  paper-survival:
+    image: itzg/minecraft-server:java21
+    container_name: paper-survival
+    hostname: paper-survival
+    environment:
+      EULA: "TRUE"
+      TYPE: PAPER
+      VERSION: "1.21.10"
+      PAPER_CHANNEL: "experimental"  # Required for 1.21.10
+      PAPER_BUILD: "108"
+      MEMORY: "12G"
+      INIT_MEMORY: "4G"
+      USE_AIKAR_FLAGS: "true"
+      ENABLE_AUTOPAUSE: "true"
+      RCON_CMDS_STARTUP:  |-
+        gamerule doInsomnia false
+        chunky radius 100000
+        chunky world world
+        chunky start
+        chunky world world_nether
+        chunky start
+        chunky world world_the_end
+        chunky start
+      RCON_CMDS_FIRST_CONNECT:  |-
+        chunky pause
+      RCON_CMDS_LAST_DISCONNECT:  |-
+        chunky continue
+      UID: 1002
+      GID: 1002
+      OVERRIDE_SERVER_PROPERTIES: "true"
+      NETWORK_COMPRESSION_THRESHOLD: "-1"
+      ONLINE_MODE: "false"
+      MODE: "survival"
+      LEVEL_TYPE: "minecraft:large_biomes"
+      DIFFICULTY: "hard"
+      PVP: "true"
+      SPAWN_PROTECTION: "8"
+      VIEW_DISTANCE: "32"
+      SIMULATION_DISTANCE: "16"
+      MAX_PLAYERS: "10"
+      ALLOW_NETHER: "true"
+      ALLOW_FLIGHT: "true"
+    volumes:
+      # Configuration
+      - ./config/paper/paper-global.yml:/config/paper-global.yml:ro
+      - ./config/paper/paper-world-defaults.yml:/config/paper-world-defaults.yml:ro
+      - ./plugins/survival:/plugins:ro
+      # Data volumes
+      - ./data/survival:/data:rw
+    networks:
+      - velocity
+    depends_on:
+      - velocity-proxy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mc-monitor status --host paper-survival --port 25565 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s  # Allow time for world generation
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+
+  paper-survival-bluemap:
+    image: ghcr.io/bluemap-minecraft/bluemap:v5.13
+    restart: unless-stopped
+    command: -r -u -w
+    ports:
+      - '8100:8100'
+    networks:
+      - velocity
+    depends_on:
+      paper-survival:
+        condition: service_healthy
+    volumes:
+      - ./config/survival/blue_map:/app/config
+      - ./data/survival/world:/app/world:ro
+      - ./data/survival/world_nether:/app/world_nether:ro
+      - ./data/survival/world_the_end:/app/world_the_end:ro 
+      - blue_map_data:/app/data
+      - blue_map_web:/app/web
+
+  # Paper Creative Server - For redstone planning and experimentation
+  paper-creative:
+    image: itzg/minecraft-server:java21
+    container_name: paper-creative
+    hostname: paper-creative
+    environment:
+      EULA: "TRUE"
+      TYPE: PAPER
+      VERSION: "1.21.10"
+      PAPER_CHANNEL: "experimental"  # Required for 1.21.10
+      PAPER_BUILD: "108"
+      MEMORY: "20G"
+      INIT_MEMORY: "8G"
+      # MAX_MEMORY: "16G"
+      USE_AIKAR_FLAGS: "true"
+      RCON_CMDS_STARTUP:  |-
+        gamerule doInsomnia false
+        gamerule doDaylightCycle false
+        gamerule doWeatherCycle false
+        time set day
+        weather clear
+      UID: 1002
+      GID: 1002
+      OVERRIDE_SERVER_PROPERTIES: "true"
+      NETWORK_COMPRESSION_THRESHOLD: "-1"
+      GENERATE_STRUCTURES: "false"
+      ONLINE_MODE: "false"
+      MODE: "creative"
+      FORCE_GAMEMODE: "true"
+      DIFFICULTY: "hard"
+      PVP: "false"
+      SPAWN_PROTECTION: "0"
+      VIEW_DISTANCE: "10"
+      SIMULATION_DISTANCE: "32"
+      MAX_PLAYERS: "10"
+      ALLOW_NETHER: "true"
+      ALLOW_FLIGHT: "true"
+    volumes:
+      # Configuration
+      - ./config/paper/paper-global.yml:/config/paper-global.yml:ro
+      - ./config/paper/paper-world-defaults.yml:/config/paper-world-defaults.yml:ro
+      - ./plugins/creative:/plugins:ro
+      # Data volumes
+      - ./data/creative:/data:rw
+    networks:
+      - velocity
+    depends_on:
+      - velocity-proxy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mc-monitor status --host paper-creative --port 25565 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+
+networks:
+  velocity:
+    driver: bridge
+
+volumes:
+  blue_map_data:
+  blue_map_web:

@@ -1,0 +1,15 @@
+services:
+  borgmatic:
+    image: ghcr.io/borgmatic-collective/borgmatic
+    restart: always
+    volumes:
+      - ./to-backup:/mnt/sources:ro
+      - ./.borgmatic/rclone.conf:/root/.config/rclone/rclone.conf:ro
+      - ./.borgmatic/etc.d:/etc/borgmatic.d/:rw
+      - ./.borgmatic-init/.keys:/root/.config/borg/keys:rw
+      - ./.borgmatic-init/local-staging:/opt/backup:rw
+      - ./.borgmatic-init/state:/root/.local/state/borgmatic
+      - ./.borgmatic-init/cache:/root/.cache/borg
+    environment:
+      - "BORG_PASSPHRASE=8rY:n631h}WF,jM4O3"
+      - "EXTRA_PKGS=rclone"

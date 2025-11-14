@@ -1,0 +1,28 @@
+source_directories:
+  - /mnt/sources
+  
+repositories:
+    - path: /opt/backup
+      label: local_staging
+
+compression: lz4
+archive_name_format: 'backup-{hostname}-{now:%Y-%m-%d-%H%M%S}'
+
+commands:
+  - before: action
+    when: [create]
+    run:
+      - "echo 'Starting backup process...'"
+
+  - after: action
+    when: [prune]
+    states: [finish]
+    run:
+      - "echo 'Copying to remote...'"
+      - "rclone copy /opt/backup backup:minecraft-4-life --progress"
+      - "echo 'Deleting old backups from remote...'"
+      - "rclone delete --min-age 120d backup:minecraft-4-life --progress"
+
+keep_daily: 7
+keep_weekly: 4
+keep_monthly: 6
