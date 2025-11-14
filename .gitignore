@@ -1,4 +1,5 @@
 .borgmatic-init
+.borgmatic/etc.d/encrypted-key-backup
 
 to-backup/
 data/
